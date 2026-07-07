@@ -1,0 +1,9 @@
+# Dump the ProtoDUNE-VD v5 geometry (matches the reco's protodunevd_reco_services)
+# to a text file via the stock geo::DumpGeometry analyzer. No build needed.
+#include "geometry_dune.fcl"
+#include "dump_lartpcdetector_geometry.fcl"
+
+services.message.destinations.GeometryLog.filename: "PDVD-v5-geometry.txt"
+services.GeometryConfigurationWriter: {}
+services.Geometry:        @local::protodunevd_v5_geo
+services.AuxDetGeometry:  @local::protodunevd_v5_auxdet_geo

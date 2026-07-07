@@ -1,0 +1,23 @@
+# Minimal ProtoDUNE-VD job: decode ONLY the PDS (DAPHNE) and save the raw light
+# waveforms. No deconvolution (VD reco does PE via ophit area/gain; not needed here),
+# no TPC signal processing, no high-level reco -> fast.
+#
+#   raw HDF5  --pdvddaphne-->  raw::OpDetWaveform  (module "pdvddaphne", instance "daq")
+#
+# Built on the stock keepup so we inherit its source (HDF5RawInput3), VD geometry,
+# DetectorProperties, TPC/DAPHNE channel-map services, and the pdvddaphne config.
+# We only override the produce path (just the DAPHNE decoder) and the output name.
+#
+# Run (inside the SL7 container):
+#   lar -c pdvd_pds_raw.fcl -s <np02vd_raw_*.hdf5> -o <tag>_pdsraw.root [-n N]
+
+#include "standard_reco_protodunevd_keepup.fcl"
+
+process_name: pdvdpdsraw
+
+# Only the DAPHNE decoder. (Add "ophit, opflash" here if you also want flashes.)
+physics.produce: [ pdvddaphne ]
+
+outputs.out1.fileName:       "%ifb_%tc_pdsraw.root"
+outputs.out1.dataTier:       "raw-waveforms"
+outputs.out1.outputCommands: [ "keep *" ]

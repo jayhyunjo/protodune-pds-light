@@ -1,0 +1,147 @@
+#include "services_dune.fcl"
+#include "OpFlashAnaDeco.fcl"
+#include "DecoAnalysis.fcl"
+#include "Deconvolution.fcl"
+
+process_name: pdsflat
+
+services:
+{
+  TFileService: { fileName: "pds_flat.root" }
+  message:                      @local::dune_message_services_prod
+  WireReadout:                  @local::dune_wire_readout
+  GeometryConfigurationWriter:  {}
+  Geometry:                     @local::protodunehdv6_geo
+  DetectorClocksService:        @local::protodunehd_detectorclocks
+  DetectorPropertiesService:    @local::protodunehd_detproperties
+  LArPropertiesService:         @local::dunefd_properties
+}
+services.AuxDetGeometry.GDML: "protodunehd_v6_refactored.gdml"
+services.AuxDetGeometry.Name: "protodunehdv6"
+
+# MUST match the keepup job's WireReadout (DuneApaWireReadout, NOpChannels=160).
+# The keepup reco sizes recob::OpFlash PE vectors to NOpChannels; if this analyzer
+# job used the default (NOpChannels=256), OpFlashAnaDeco's FlashBreakdownTree loop
+# (for j!=NOpChannels: TheFlash.PE(j)) reads past the 160-entry PE vector -> phantom
+# OpChannels 160-255 with inf/garbage NPe. Keep both jobs on the same map.
+services.WireReadout.WireReadoutClass: "DuneApaWireReadout"
+
+physics:
+{
+  analyzers:
+  {
+    # OpHit + OpFlash -> flat TTrees (PerOpHitTree, PerFlashTree, ...)
+    opflashana: @local::dune_opflashana_deco
+    # raw + deconvolved waveforms -> per-channel TH1D histograms
+    decoana:    @local::dune_deco_analysis
+    # per-event TPC<->trigger time offset, from products in the keepup.root input
+    trigoff:
+    {
+      module_type:         "TriggerOffsetAna"
+      RDTimeStampTag:      "tpcrawdecoder:daq"
+      TriggerCandidateTag: "triggerrawdecoder:daq"
+      DTSTickUs:           0.016
+    }
+    # per-OpDet (physical detector) info for BEE: positions + PE per detector per flash
+    flashopdet:
+    {
+      module_type: "FlashOpDetAna"
+      OpFlashTag:  "opflash"
+    }
+    # ALL raw OpDetWaveforms (one row per record), incl. channels with no
+    # deconvolved waveform (e.g. APA1 full-stream 120-159) which appear nowhere
+    # else in the flat output. Channels:[] => all; set a list to restrict.
+    rawdump:
+    {
+      module_type:      "PDSRawWaveformDump"
+      OpDetWaveformTag: "pdhddaphne:daq"
+      MakeTree:         true     # compact flat tree raw_waveform (all channels)
+      MakeHistograms:   false
+      Channels:         []
+    }
+    # Per-channel TH1S histograms (decoana-style: run_<run>_evt_<evt>/ch<N>/waveform_<K>)
+    # for browsing in a TBrowser. Channels:[] => ALL channels (self-contained browsable
+    # set, one histogram per raw record). NB: busy runs have ~1e5 records/file -> large
+    # files + many objects.
+    rawhist:
+    {
+      module_type:      "PDSRawWaveformDump"
+      OpDetWaveformTag: "pdhddaphne:daq"
+      MakeTree:         false
+      MakeHistograms:   true
+      Channels:         []
+    }
+    # ALL deconvolved waveforms (recob::OpWaveform from opdec), uncapped -> deco_waveform
+    # tree. decoana caps at ~400/event; this stores every channel so the viewer can
+    # show a deconvolved trace for any lit PD.
+    decodump:
+    {
+      module_type:   "PDSDecoWaveformDump"
+      OpWaveformTag: "opdec"
+    }
+    # v0 (Nov2024) per-channel SPE templates, re-run in LArSoft -> deco_waveform under decodumpv0/
+    decodumpv0:
+    {
+      module_type:   "PDSDecoWaveformDump"
+      OpWaveformTag: "opdecv0"
+    }
+    # SAME deconvolution but with the 2024 NP04 vendor-AVERAGE templates (opdecnp04) =
+    # colleague Xin's WireCell kernels (SPE_NP04_{FBK,HPK}_2024_without_pretrigger.dat
+    # + the 68-FBK/92-HPK vendor map), re-run here in LArSoft -> deco_waveform under
+    # decodumpnp04/, so the viewer can overlay v1 (per-channel) vs NP04 (vendor-avg).
+    decodumpnp04:
+    {
+      module_type:   "PDSDecoWaveformDump"
+      OpWaveformTag: "opdecnp04"
+    }
+  }
+  producers:
+  {
+    # NP04 vendor-average deconvolution = protodunehd_deconvolution (v1 base: same
+    # Wiener filter, FFT noise template, IgnoreChannels, pretrigger) with the MC channel
+    # table overlaid -> swaps the per-channel SPE kernels for the 2 NP04 vendor averages
+    # + the 68-FBK/92-HPK vendor->template map (the templates Xin's WCT OpDecon uses).
+    opdecnp04:
+    {
+      @table::protodunehd_deconvolution
+      @table::protodunehd_pds_channels_mc
+    }
+    # v0 per-channel deconvolution = protodunehd_deconvolution (v1 base: same filter/noise/
+    # ignore/pretrigger) with the v0 (Nov2024) per-channel SPE template table overlaid.
+    opdecv0:
+    {
+      @table::protodunehd_deconvolution
+      @table::protodunehd_pds_channels_data_v0
+    }
+  }
+  # producer path (re-deconvolution) runs before the analyzers that read opdecv0/opdecnp04
+  reco: [ opdecv0, opdecnp04 ]
+  # trigoff/flashopdet FIRST and tolerant (they no-op on missing products), so the
+  # offset + OpDet geometry are recorded even for fembfilter-rejected events.
+  ana: [ trigoff, flashopdet, rawdump, rawhist, decodump, decodumpv0, decodumpnp04, opflashana, decoana ]
+  trigger_paths: [ reco ]
+  end_paths: [ ana ]
+}
+
+# fembfilter-rejected events have no opflash/opdec -> OpFlashAnaDeco/DecoAnalysis
+# throw ProductNotFound. Skip those events instead of aborting the whole job.
+services.scheduler.SkipEvent: [ "ProductNotFound" ]
+
+# --- OpFlashAnaDeco: point at the real recob products and turn the trees on ---
+physics.analyzers.opflashana.OpFlashModuleLabel:   "opflash"
+physics.analyzers.opflashana.OpHitModuleLabel:     "ophitspe"
+physics.analyzers.opflashana.InputrecobOpflash:    "true"   # our input HAS recob::OpFlash
+physics.analyzers.opflashana.MakePerOpHitTree:      true     # one row per recob::OpHit
+physics.analyzers.opflashana.MakePerFlashTree:      true     # one row per recob::OpFlash
+physics.analyzers.opflashana.MakeFlashBreakdownTree: true    # one row per flash-per-channel PE
+physics.analyzers.opflashana.MakeFlashHitMatchTree: true     # one row per flash<->hit match
+physics.analyzers.opflashana.MakePerEventFlashTree: true     # one row per event (vectors)
+
+# --- DecoAnalysis: deconvolved waveforms from opdec (raw reached via assns) ---
+physics.analyzers.decoana.InputModuleDeco: "opdec"
+
+# --- v0 + NP04 re-deconvolution: same raw input as the keepup's opdec (pdhddaphne:daq) ---
+physics.producers.opdecv0.InputModule:    "pdhddaphne"
+physics.producers.opdecv0.InstanceName:   "daq"
+physics.producers.opdecnp04.InputModule:  "pdhddaphne"
+physics.producers.opdecnp04.InstanceName: "daq"

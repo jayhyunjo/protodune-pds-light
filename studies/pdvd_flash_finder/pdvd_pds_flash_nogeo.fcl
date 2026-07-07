@@ -1,0 +1,24 @@
+# CLEAN TEST: disable the flash-finder's geometry/plane cut entirely, leaving only
+# the 2 us time cut. Cx huge -> every hit is classified "cathode" -> the cathode
+# branch (3D dist < Cdyz=1500 cm, which exceeds the ~1131 cm max PD-PD distance)
+# groups ANY two hits that are within 2 us of each other.
+#   High multiplicity  -> geometry cut was the whole story (hits ARE time-coincident).
+#   Still low (~1-2)    -> a genuine time/coincidence limitation remains.
+#include "standard_reco_protodunevd_keepup.fcl"
+
+process_name: pdvdflashnogeo
+
+physics.produce: [ pdvddaphne, ophit, opflash ]
+
+physics.producers.opflash.Cx: 100000.0   # geometry cut effectively OFF (all hits pass)
+
+physics.analyzers.opflashana:                    @local::dunefd_opflashana
+physics.analyzers.opflashana.OpFlashModuleLabel: "opflash"
+physics.analyzers.opflashana.OpHitModuleLabel:   "ophit"
+
+physics.ana:        [ opflashana ]
+physics.end_paths:  [ output, ana ]
+
+services.TFileService.fileName: "%ifb_%tc_flashnogeo_hist.root"
+outputs.out1.fileName:          "%ifb_%tc_flashnogeo.root"
+outputs.out1.outputCommands:    [ "keep *" ]

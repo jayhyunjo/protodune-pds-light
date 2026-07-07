@@ -1,0 +1,25 @@
+# STAGE 0 confirmation: same as pdvd_pds_flash_test.fcl but retune the flash-finder
+# membrane plane thresholds to match ProtoDUNE-VD v5 geometry (|Y|~418, not 700).
+# If the diagnosis is right, membrane hits should now group -> multi-PD flashes appear.
+#include "standard_reco_protodunevd_keepup.fcl"
+
+process_name: pdvdflashretune
+
+physics.produce: [ pdvddaphne, ophit, opflash ]
+
+# --- the fix under test: membranes sit at |Y|~418 cm, so classify |Y|>400 as membrane ---
+physics.producers.opflash.RMy:  400.0
+physics.producers.opflash.LMy: -400.0
+# (Cx left at -320 on purpose: cathode is at X~0 and can't be isolated by a single X cut;
+#  cathode X-ARAPUCAs are expected to stay single-PD here -> shows why config-only isn't a full fix.)
+
+physics.analyzers.opflashana:                    @local::dunefd_opflashana
+physics.analyzers.opflashana.OpFlashModuleLabel: "opflash"
+physics.analyzers.opflashana.OpHitModuleLabel:   "ophit"
+
+physics.ana:        [ opflashana ]
+physics.end_paths:  [ output, ana ]
+
+services.TFileService.fileName: "%ifb_%tc_flashretune_hist.root"
+outputs.out1.fileName:          "%ifb_%tc_flashretune.root"
+outputs.out1.outputCommands:    [ "keep *" ]

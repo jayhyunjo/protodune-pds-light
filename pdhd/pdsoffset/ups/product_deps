@@ -1,0 +1,20 @@
+parent pdsoffset
+defaultqual e26:prof
+
+# only_for_build products
+cetmodules    v3_24_01    -    only_for_build
+
+# runtime/build dependency: dunesw pulls in art, lardataobj, dunedetdataformats, ROOT, ...
+product       version
+dunesw        v10_20_09d00
+end_product_list
+
+# -nq- means "not qualified"
+qualifier        dunesw         notes
+e26:prof         e26:prof       -std=c++17
+e26:debug        e26:debug      -std=c++17
+end_qualifier_list
+
+### Local Variables:
+### mode: sh
+### End:

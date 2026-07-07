@@ -1,0 +1,30 @@
+#include "messageservice.fcl"
+
+process_name: trigoff
+
+services:
+{
+  TFileService: { fileName: "trigger_offset.root" }
+  message:      @local::standard_info
+}
+
+source:
+{
+  module_type: RootInput
+}
+
+physics:
+{
+  analyzers:
+  {
+    trigoff:
+    {
+      module_type:         "TriggerOffsetAna"
+      RDTimeStampTag:       "tpcrawdecoder:daq"
+      TriggerCandidateTag:  "triggerrawdecoder:daq"
+      DTSTickUs:            0.016     # DAQ DTS clock tick = 16 ns
+    }
+  }
+  ana:       [ trigoff ]
+  end_paths: [ ana ]
+}

@@ -1,0 +1,23 @@
+# QUICK TEST: PDS raw + flashes + per-channel PE breakdown, no custom package.
+#   pdvddaphne -> ophit -> opflash   (+ stock OpFlashAna analyzer)
+# Produces, in the TFileService hist file:
+#   opflashana/FlashBreakdownTree  (per flash x OpChannel: NPe, AbsTime)  <- reveals VD OpChannel numbering
+#   opflashana/PerEventFlashTree, PerFlashTree, PerOpHitTree
+# and the art output keeps raw::OpDetWaveform + recob::OpHit/OpFlash.
+
+#include "standard_reco_protodunevd_keepup.fcl"
+
+process_name: pdvdflashtest
+
+physics.produce: [ pdvddaphne, ophit, opflash ]
+
+physics.analyzers.opflashana:                   @local::dunefd_opflashana
+physics.analyzers.opflashana.OpFlashModuleLabel: "opflash"
+physics.analyzers.opflashana.OpHitModuleLabel:   "ophit"
+
+physics.ana:        [ opflashana ]
+physics.end_paths:  [ output, ana ]
+
+services.TFileService.fileName: "%ifb_%tc_flashtest_hist.root"
+outputs.out1.fileName:          "%ifb_%tc_flashtest.root"
+outputs.out1.outputCommands:    [ "keep *" ]

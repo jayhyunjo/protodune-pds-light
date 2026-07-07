@@ -1,0 +1,6 @@
+#include "geometry_dune.fcl"
+#include "dump_lartpcdetector_geometry.fcl"
+services.message.destinations.GeometryLog.filename: "PDVD-v4-geometry.txt"
+services.GeometryConfigurationWriter: {}
+services.Geometry:        @local::protodunevd_v4_geo
+services.AuxDetGeometry:  @local::protodunevd_v4_auxdet_geo

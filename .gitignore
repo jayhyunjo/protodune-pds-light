@@ -1,0 +1,22 @@
+# data / large outputs (regenerable)
+*.root
+*.hdf5
+*.npz
+PDVD-*-geometry.txt
+*_geometry.txt
+
+# rendered figures / logs / caches
+*.png
+*.pdf
+*.log
+*.db
+
+# python
+__pycache__/
+*.pyc
+
+# mrb / cetmodules build artifacts (keep pdsoffset SOURCE, drop builds)
+build*/
+localProducts*/
+*.o
+*.d
