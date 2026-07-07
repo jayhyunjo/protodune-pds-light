@@ -44,7 +44,14 @@ pdhd/
 studies/
   pdvd_flash_finder/  fcls used to diagnose the OpFlashFinderVerticalDrift single-PD-flash bug
   plotting/           one-off plotting / ROOT-macro analysis scripts (geometry, PE maps, timing)
+
+docs/
+  pdvd_pds_findings.md         distilled ProtoDUNE-VD PDS findings (read this first)
+  pdhd_pds_session_summary.md  ProtoDUNE-HD PDS reco/deconvolution session summary
 ```
+
+See **`docs/pdvd_pds_findings.md`** for the ProtoDUNE-VD findings summary (reco, geometry,
+readout modes, channel quality, the flash-finder defect, and the raw-light handoff).
 
 ---
 
