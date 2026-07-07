@@ -1,0 +1,27 @@
+# Produce ProtoDUNE-VD OpHits and dump them to a flat tree (opflashana/PerOpHitTree),
+# the input to pdvd/flash/group_ophits.py (our custom flash builder).
+#   pdvddaphne -> ophit -> (opflash) + OpFlashAna
+# The stock opflash (OpFlashFinderVerticalDrift) runs too but its flashes are single-PD
+# (FD-scale plane thresholds + a float-precision bug) — we ignore them and rebuild
+# multi-PD flashes from the OpHits with group_ophits.py.
+#
+# Run INSIDE the SL7 container:
+#   lar -c pdvd_pds_ophit.fcl -s <raw>.hdf5 -o <tag>_ophit.root -T <tag>_ophit_hist.root [-n N]
+# then: python ../flash/group_ophits.py <tag>_ophit_hist.root --scan
+
+#include "standard_reco_protodunevd_keepup.fcl"
+
+process_name: pdvdophit
+
+physics.produce: [ pdvddaphne, ophit, opflash ]
+
+physics.analyzers.opflashana:                    @local::dunefd_opflashana
+physics.analyzers.opflashana.OpFlashModuleLabel: "opflash"
+physics.analyzers.opflashana.OpHitModuleLabel:   "ophit"
+
+physics.ana:        [ opflashana ]
+physics.end_paths:  [ output, ana ]
+
+services.TFileService.fileName: "%ifb_%tc_ophit_hist.root"
+outputs.out1.fileName:          "%ifb_%tc_ophit.root"
+outputs.out1.outputCommands:    [ "keep *" ]

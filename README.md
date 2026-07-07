@@ -29,6 +29,9 @@ pdvd/
             pdvd_dump_rawwf.py            art raw::OpDetWaveform -> PLAIN-ROOT raw_waveform tree
             run_pdvd_rawwf_dump.sh        batch wrapper for the dump
   viewer/   pdvd_raw_viewer.py            interactive raw-light event/waveform viewer
+  flash/    group_ophits.py               custom double-precision OpHit->flash grouping (multi-PD
+                                          flashes; replaces the buggy OpFlashFinderVerticalDrift).
+                                          Input from fcl/pdvd_pds_ophit.fcl (pdvddaphne+ophit+OpFlashAna)
   maps/     pdvd_v5_opdet_positions.csv   OpDet(0-39) -> x,y,z, type, name  (from the geometry)
             pdvd_offlinechan_to_opdet.csv offline channel(1010-3240) -> OpDet  (from the DAPHNE map)
 
