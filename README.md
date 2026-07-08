@@ -33,7 +33,8 @@ pdvd/
             run_pdvd_rawwf_dump.sh        batch wrapper for the raw-wf dump
             pdvd_dump_flash.py           art recob::OpFlash/OpHit -> PLAIN-ROOT flash/flash_opdet/ophit
             run_pdvd_flash.sh            batch: raw HDF5 -> plain-ROOT flash file (fixed finder)
-  viewer/   pdvd_raw_viewer.py            interactive raw-light event/waveform viewer
+  viewer/   pdvd_raw_viewer.py            interactive raw-light EVENT/waveform viewer
+            pdvd_flash_viewer.py         interactive FLASH viewer: PE maps + click->raw waveform
   flash/    group_ophits.py               standalone double-precision OpHit->flash grouping; the
                                           reference the fixed finder was validated against (identical)
   maps/     pdvd_v5_opdet_positions.csv   OpDet(0-39) -> x,y,z, type, name  (from the geometry)
@@ -95,6 +96,15 @@ DEV=/path/to/vddev  bash pdvd/scripts/run_pdvd_flash.sh          # raw HDF5 -> <
 ```
 Trees (plain ROOT, no art dependency): `flash` (per flash: time, total_pe, n_opdet, y/z center+width),
 `flash_opdet` (per flash per OpDet: pe, x, y, z), `ophit` (per OpHit). All keyed by run/subrun/event.
+
+**5. Flash viewer** (laptop: `numpy`, `matplotlib`, `uproot`; auto-finds the sibling `_rawwf.root`):
+```bash
+python pdvd/viewer/pdvd_flash_viewer.py <…_flash.root> [--rawwf <…_rawwf.root>]
+```
+Flash-by-flash: Side (X-Z) + Top (Y-Z) OpDet maps colored by each PD's PE in the flash (log
+scale); click a PD for its raw waveform, matched to the flash time (the record whose pulse lands
+at t=0). Decon panel is a stub (VD reco is raw-only). ←/→ ±1 flash, ↑/↓ ±10, pg ±50, `s` save.
+Headless: `--start N [--opdet K] --out flash.png`.
 
 ---
 
