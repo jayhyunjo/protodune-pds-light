@@ -1,0 +1,30 @@
+# Reprocess ProtoDUNE-VD raw HDF5 -> recob::OpFlash using the FIXED
+# OpFlashFinderVerticalDrift (see studies/pdvd_flash_finder/).  Chain:
+#   pdvddaphne (decode PDS) -> ophit -> opflash  (+ OpFlashAna cross-check trees)
+# The stock finder single-PDs every flash; run this against a dev area that has the
+# patched module: `source vddev/localProducts*/setup; mrbslp` before lar.
+#
+# The art output KEEPS recob::OpHit + recob::OpFlash but DROPS the bulky
+# raw::OpDetWaveform (those are handled by the separate pdvd_pds_raw.fcl / rawwf
+# workflow), so the art file stays small.  Dump it to plain ROOT with
+# pdvd/scripts/pdvd_dump_flash.py.
+#
+#   lar -c pdvd_pds_flash.fcl -s <raw>.hdf5 -o <tag>_flashreco.root -T <tag>_flash_hist.root [-n N]
+#   python ../scripts/pdvd_dump_flash.py <tag>_flashreco.root <tag>_flash.root
+
+#include "standard_reco_protodunevd_keepup.fcl"
+
+process_name: pdvdflash
+
+physics.produce: [ pdvddaphne, ophit, opflash ]
+
+physics.analyzers.opflashana:                    @local::dunefd_opflashana
+physics.analyzers.opflashana.OpFlashModuleLabel: "opflash"
+physics.analyzers.opflashana.OpHitModuleLabel:   "ophit"
+
+physics.ana:        [ opflashana ]
+physics.end_paths:  [ output, ana ]
+
+services.TFileService.fileName: "%ifb_%tc_flash_hist.root"
+outputs.out1.fileName:          "%ifb_%tc_flashreco.root"
+outputs.out1.outputCommands:    [ "keep *", "drop raw::OpDetWaveforms_*_*_*" ]

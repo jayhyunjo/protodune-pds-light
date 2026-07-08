@@ -24,14 +24,18 @@ setup dunesw v10_21_00d00 -q e26:prof      # PDVD (v10_20_09d00 for the PDHD wor
 ```
 pdvd/
   fcl/      pdvd_pds_raw.fcl              decode PDS only (pdvddaphne) -> raw::OpDetWaveform, keep raw
+            pdvd_pds_ophit.fcl           pdvddaphne+ophit+opflash+OpFlashAna (OpHit/flash trees)
+            pdvd_pds_flash.fcl           pdvddaphne+ophit+opflash, keep recob::OpHit+OpFlash (drop
+                                          raw wf); run w/ the FIXED finder (mrbslp) -> lean art
             dump_protodunevd_geometry.fcl geo::DumpGeometry of protodunevd_v5 (OpDet positions)
   scripts/  run_pdvd_pdsraw.sh            batch: raw HDF5 -> <tag>_pdsraw.root (art)
             pdvd_dump_rawwf.py            art raw::OpDetWaveform -> PLAIN-ROOT raw_waveform tree
-            run_pdvd_rawwf_dump.sh        batch wrapper for the dump
+            run_pdvd_rawwf_dump.sh        batch wrapper for the raw-wf dump
+            pdvd_dump_flash.py           art recob::OpFlash/OpHit -> PLAIN-ROOT flash/flash_opdet/ophit
+            run_pdvd_flash.sh            batch: raw HDF5 -> plain-ROOT flash file (fixed finder)
   viewer/   pdvd_raw_viewer.py            interactive raw-light event/waveform viewer
-  flash/    group_ophits.py               custom double-precision OpHit->flash grouping (multi-PD
-                                          flashes; replaces the buggy OpFlashFinderVerticalDrift).
-                                          Input from fcl/pdvd_pds_ophit.fcl (pdvddaphne+ophit+OpFlashAna)
+  flash/    group_ophits.py               standalone double-precision OpHit->flash grouping; the
+                                          reference the fixed finder was validated against (identical)
   maps/     pdvd_v5_opdet_positions.csv   OpDet(0-39) -> x,y,z, type, name  (from the geometry)
             pdvd_offlinechan_to_opdet.csv offline channel(1010-3240) -> OpDet  (from the DAPHNE map)
 
@@ -45,7 +49,8 @@ pdhd/
                                           FlashOpDetAna, TriggerOffsetAna
 
 studies/
-  pdvd_flash_finder/  fcls used to diagnose the OpFlashFinderVerticalDrift single-PD-flash bug
+  pdvd_flash_finder/  the OpFlashFinderVerticalDrift single-PD-flash bug: BUG_REPORT.md (3 root
+                      causes + fix), patch/ (patched module + diff vs v10_21_00d00), diagnosis fcls
   plotting/           one-off plotting / ROOT-macro analysis scripts (geometry, PE maps, timing)
 
 docs/
@@ -81,6 +86,16 @@ Two OpDet maps (Side X-Z, Top Y-Z) colored by raw amplitude; click a PD for its 
 (click again to cycle overlapping PDs); ←/→ step events, ↑/↓ ±10, `t` toggles the self-trigger
 waveform display (overlay-by-sample vs spread-by-timestamp). Headless: `--event N --out ev.png`.
 
+**4. Flashes → plain ROOT** (needs the **fixed** finder — build the patched `duneopdet` in an mrb
+dev area, see `studies/pdvd_flash_finder/`, then `source vddev/localProducts*/setup; mrbslp`):
+```bash
+DEV=/path/to/vddev  bash pdvd/scripts/run_pdvd_flash.sh          # raw HDF5 -> <tag>_flash.root
+# per file: lar -c pdvd/fcl/pdvd_pds_flash.fcl -s <raw>.hdf5 -o <tag>_flashreco.root [-n N]
+#           python pdvd/scripts/pdvd_dump_flash.py <tag>_flashreco.root <tag>_flash.root
+```
+Trees (plain ROOT, no art dependency): `flash` (per flash: time, total_pe, n_opdet, y/z center+width),
+`flash_opdet` (per flash per OpDet: pe, x, y, z), `ophit` (per OpHit). All keyed by run/subrun/event.
+
 ---
 
 ## Key PDVD facts (v5 geometry)
@@ -97,10 +112,13 @@ waveform display (overlay-by-sample vs spread-by-timestamp). Headless: `--event 
 - **4 dead PMTs**: OpDet 24/27/28/34 (offline ch 3090/3120/3130/3190) — never read out.
 - **No deconvolution** in VD reco (unlike PDHD): the raw waveforms are handed off for
   downstream WireCell deconvolution + charge–light matching.
-- **Flash finder is broken for VD** (`OpFlashFinderVerticalDrift`): FD-scale plane thresholds
-  + a clustering issue mean it fails to group coincident hits → every flash is single-PD.
-  See `studies/pdvd_flash_finder/`. (Charge–light matching therefore needs a fixed finder or a
-  custom time-window OpHit grouping — TODO.)
+- **Flash finder was broken for VD** (`OpFlashFinderVerticalDrift`, dunesw v10_21_00d00): three
+  bugs (FD-scale plane thresholds, a `float` time-seed precision loss at VD timestamps, and a
+  sorted-vs-original hit-index mismatch) made every flash single-PD. **Fixed** by replacing the
+  clustering with a double-precision greedy time-window grouping — now multi-PD (max ~28, mean
+  ~2.8 OpDets/flash at `MaximumTimeWindow=2`), matching `pdvd/flash/group_ophits.py` exactly.
+  See `studies/pdvd_flash_finder/` (BUG_REPORT.md + patch). Build the patched `duneopdet` in an
+  mrb dev area and run the standard reco with `mrbslp`.
 
 ## PDHD workflow
 

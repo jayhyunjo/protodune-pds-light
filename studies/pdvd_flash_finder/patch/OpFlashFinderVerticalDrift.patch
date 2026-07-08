@@ -1,0 +1,154 @@
+diff --git a/duneopdet/OpticalDetector/OpFlashFinderVerticalDrift_module.cc b/duneopdet/OpticalDetector/OpFlashFinderVerticalDrift_module.cc
+index b4fe019..3a67920 100644
+--- a/duneopdet/OpticalDetector/OpFlashFinderVerticalDrift_module.cc
++++ b/duneopdet/OpticalDetector/OpFlashFinderVerticalDrift_module.cc
+@@ -82,7 +82,7 @@ namespace opdet {
+     std::vector<int> getNeighbors(std::vector< recob::OpHit > const&       HitVector,
+                                   int hitnumber,
+                                   std::vector<bool> &processed,
+-                                  float initimecluster,
++                                  double initimecluster,
+                                   std::vector<int> &sorted);
+     void AssignHitsToFlash(std::vector< recob::OpHit > const&       HitVector,
+                            std::vector< std::vector< int > >&       HitsPerFlash);
+@@ -414,7 +414,7 @@ namespace opdet {
+  std::vector<int> OpFlashFinderVerticalDrift::getNeighbors(std::vector< recob::OpHit > const&       HitVector,
+                                                            int hitnumber, 
+                                                            std::vector<bool> &processed, 
+-                                                           float initimecluster, 
++                                                           double initimecluster, 
+                                                            std::vector<int> &sorted)
+  {
+ 
+@@ -451,40 +451,10 @@ namespace opdet {
+        dtmax  = TMath::Abs(initimecluster - HitVector[sorted[h]].PeakTime() );       
+        double dist = TMath::Sqrt(dx*dx + dy*dy + dz*dz);
+        
+-       if(xyz_h.X() < fCx && xyz_hitnumber.X() < fCx){
+-         if(dt<fMaximumTimeDistance && dtmax<fMaximumTimeWindow && dist < fCdyz){ neighbors.push_back(h);processed[h]=true;}  	
+-         //std::cout <<" C C "<< fCdyz <<" "<< dist << std::endl; 
+-
+-       }
+-       if(xyz_h.Y() > fRMy && xyz_hitnumber.Y() > fRMy){
+-         if(dt<fMaximumTimeDistance && dtmax<fMaximumTimeWindow && dist < fMMdz){ neighbors.push_back(h);processed[h]=true;}  
+-         //std::cout <<" R R "<< fMMdz <<" "<< dist << std::endl;
+-       }
+-       if(xyz_h.Y() < fLMy && xyz_hitnumber.Y() < fLMy){
+-         if(dt<fMaximumTimeDistance && dtmax<fMaximumTimeWindow && dist < fMMdz){ neighbors.push_back(h);processed[h]=true;}
+-         //std::cout <<" L L "<< fMMdz <<" "<< dist << std::endl;
+-       }
+-       if(TMath::Abs(xyz_h.Y()) > fRMy && xyz_hitnumber.X() < fCx){
+-         dist = TMath::Abs(dz);
+-         if(dt<fMaximumTimeDistance && dtmax<fMaximumTimeWindow && dist < fCMdz){ neighbors.push_back(h);processed[h]=true;} 
+-         //std::cout <<" C RL "<< fCMdz <<" "<< dist << std::endl;
+-       }
+-       if(xyz_h.X() < fCx && TMath::Abs(xyz_hitnumber.Y()) > fRMy){
+-         dist = TMath::Abs(dz);
+-         if(dt<fMaximumTimeDistance && dtmax<fMaximumTimeWindow && dist < fCMdz){ neighbors.push_back(h);processed[h]=true;}
+-         //std::cout <<" RL C "<< fCMdz <<" "<< dist << std::endl;
+-       }
+-       if(xyz_h.Y() < fLMy && xyz_hitnumber.Y() > fRMy){
+-         dist = TMath::Abs(dz);
+-         if(dt<fMaximumTimeDistance && dtmax<fMaximumTimeWindow && dist < fMMdz){ neighbors.push_back(h);processed[h]=true;}
+-         //std::cout <<" R L "<< fMMdz <<" "<< dist << std::endl;
+-       }
+-       if(xyz_h.Y() > fRMy && xyz_hitnumber.Y() < fLMy){
+-         dist = TMath::Abs(dz);
+-         if(dt<fMaximumTimeDistance && dtmax<fMaximumTimeWindow && dist < fMMdz){ neighbors.push_back(h);processed[h]=true;}
+-         //std::cout <<" L R "<< fMMdz <<" "<< dist << std::endl;
+-       }       
+-
++       // PDVD FIX: the original per-plane thresholds (Cx=-320, RMy/LMy=+-700) are full-scale
++       // FD-VD values that never match ProtoDUNE-VD (cathode X~0, membrane |Y|~418), so no
++       // branch ever fired. Group by time coincidence + a generous 3D distance (fCdyz ~ det size).
++       if(dt<fMaximumTimeDistance && dtmax<fMaximumTimeWindow && dist < fCdyz){ neighbors.push_back(h); processed[h]=true; }
+      }
+    }
+    return neighbors;
+@@ -494,40 +464,44 @@ namespace opdet {
+                                                     std::vector< std::vector< int > >&       HitsPerFlash)
+  {
+ 
+-   int ntothits=HitVector.size();
++   // PDVD FIX: the original clustering (getNeighbors + BFS) was doubly broken for
++   // ProtoDUNE-VD: (a) FD-scale per-plane thresholds (Cx=-320, RMy/LMy=+-700) never
++   // matched v5 geometry so no branch fired; (b) getNeighbors returns SORTED positions
++   // while ConstructFlash/associations index HitVector by ORIGINAL index, so the wrong
++   // hits were assigned to each flash -> every flash collapsed to ~1 OpDet.
++   //
++   // Replace it with a simple, validated greedy time-window grouping (double precision):
++   // sort hits by PeakTime, and each flash spans [t0, t0 + fMaximumTimeWindow] from its
++   // earliest ungrouped hit.  At ProtoDUNE-VD scale every PD that sees a coincident
++   // scintillation flash belongs to the same flash, so no spatial cut is applied here
++   // (matches the standalone group_ophits.py cross-check: max multiplicity ~28 at dt=2).
++   int ntothits = HitVector.size();
++   HitsPerFlash.clear();
++   if (ntothits == 0) return;
++
+    std::size_t n(0);
+    std::vector<int> sorted;
+    sorted.resize(ntothits);
+    std::generate(std::begin(sorted), std::end(sorted), [&]{ return n++; });
+-   std::sort(  std::begin(sorted), std::end(sorted), [&](int i1, int i2) { return HitVector[i1].PeakTime() < HitVector[i2].PeakTime(); }); 
+-
+-   HitsPerFlash.clear();
+-
+-   std::vector<bool> processed;
+-   processed.resize(HitVector.size(),false);
++   std::sort(std::begin(sorted), std::end(sorted),
++             [&](int i1, int i2) { return HitVector[i1].PeakTime() < HitVector[i2].PeakTime(); });
+ 
+-   for (unsigned int h=0;h<HitVector.size();h++)
+-   { 
+-     if(!processed[h])
++   int i = 0;
++   while (i < ntothits)
++   {
++     double t0 = HitVector[sorted[i]].PeakTime();
++     std::vector<int> flashHits;
++     int j = i;
++     while (j < ntothits &&
++            HitVector[sorted[j]].PeakTime() <= t0 + fMaximumTimeWindow)
+      {
+-       //std::cout << "Start h :" << h << std::endl;  
+-       processed[h]=true;
+-       std::vector<int> N; N.clear();
+-       std::vector<int> nb =getNeighbors(HitVector,h, processed, HitVector[sorted[h]].PeakTime(),sorted); 
+-       N.insert( N.end(), nb.begin(), nb.end() );
+-       //std::cout << "Main go: " << nb.size() << std::endl;
+-       for (unsigned int i=0;i<N.size();i++)
+-       {
+-           std::vector<int> nb2 =getNeighbors(HitVector,N[i], processed, HitVector[sorted[h]].PeakTime(),sorted); 
+-           //std::cout << "Go: " << i << nb2.size() << std::endl;
+-           N.insert( N.end(), nb2.begin(), nb2.end() );
+-       }
+-           N.push_back(sorted[h]);
+-           //std::cout << "N size:  " << N.size() << std::endl;         
+-           HitsPerFlash.push_back(N);
+-     } 
++       flashHits.push_back(sorted[j]);   // ORIGINAL hit index (what ConstructFlash expects)
++       j++;
++     }
++     HitsPerFlash.push_back(flashHits);
++     i = j;
+    }
+-    
++
+  } // End AssignHitsToFlash
+ 
+   //----------------------------------------------------------------------------
+diff --git a/duneopdet/PhotonPropagation/CMakeLists.txt b/duneopdet/PhotonPropagation/CMakeLists.txt
+index 934af2d..af3c6b7 100644
+--- a/duneopdet/PhotonPropagation/CMakeLists.txt
++++ b/duneopdet/PhotonPropagation/CMakeLists.txt
+@@ -38,7 +38,9 @@ install_source()
+ 
+ # NeedsTensorflow depends on LegacyLArG4 and cannot be built with geant 4.11
+ if(DEFINED ENV{TENSORFLOW_DIR})
+-  add_subdirectory(NeedsTensorflow)
++  # PDVD: disabled for this flash-finder-only dev build -- the TF visibility-model tools
++  # fail to find target larsimdnn::TFLoaderTool here and are not needed for flash reco.
++  # add_subdirectory(NeedsTensorflow)
+ endif()
+ add_subdirectory(LibraryBuildTools)
+ add_subdirectory(ScintTimeTools)
