@@ -37,12 +37,76 @@ TICK_US = 0.016            # 16 ns / sample
 DEAD_PMT = {24, 27, 28, 34}
 
 
-def load_maps(posf):
+# Embedded protodunevd_v5 OpDet positions (cm) so the viewer is self-contained on a laptop
+# even without the repo's maps/ dir.  Overridden by --positions or any found maps CSV.
+EMBEDDED_POS = """opdet,x,y,z,geom_shape,json_pd_type,json_name
+0,305.6,417.61,149.65,xarapuca,Membrane,M1
+1,305.6,-417.61,149.65,xarapuca,Membrane,M3
+2,229,417.61,149.65,xarapuca,Membrane,M2
+3,229,-417.61,149.65,xarapuca,Membrane,M4
+4,-1.77636e-14,123.85,258.525,xarapuca,Cathode,C2
+5,-1.77636e-14,-213.15,258.525,xarapuca,Cathode,C6
+6,-1.77636e-14,290.35,187.275,xarapuca,Cathode,C1
+7,-1.77636e-14,-46.65,187.275,xarapuca,Cathode,C5
+8,-1.77636e-14,42.6,112.025,xarapuca,Cathode,C3
+9,-1.77636e-14,-213.15,112.025,xarapuca,Cathode,C7
+10,-1.77636e-14,209.1,40.775,xarapuca,Cathode,C4
+11,-1.77636e-14,-127.9,40.775,xarapuca,Cathode,C8
+12,-201.1,417.61,149.65,xarapuca,Membrane,M5
+13,-201.1,-417.61,149.65,xarapuca,Membrane,M7
+14,-205.9,221,408.988,pmt,PMT,-
+15,-205.9,-221,408.988,pmt,PMT,-
+16,-205.9,256,-96.1242,pmt,PMT,-
+17,-205.9,-221,-109.688,pmt,PMT,-
+18,-277.7,417.61,149.65,xarapuca,Membrane,M6
+19,-277.7,-417.61,149.65,xarapuca,Membrane,M8
+20,-281.7,221,408.988,pmt,PMT,-
+21,-281.7,-221,408.988,pmt,PMT,-
+22,-281.7,256,-96.1242,pmt,PMT,-
+23,-281.7,-221,-109.688,pmt,PMT,-
+24,-336.474,170,455.65,pmt,PMT,-
+25,-336.474,1.13687e-13,455.65,pmt,PMT,-
+26,-336.474,-170,455.65,pmt,PMT,-
+27,-336.474,170,353.65,pmt,PMT,-
+28,-336.474,1.13687e-13,353.65,pmt,PMT,-
+29,-336.474,-170,353.65,pmt,PMT,-
+30,-336.474,405.3,217.75,pmt,PMT,-
+31,-336.474,-405.3,217.75,pmt,PMT,-
+32,-336.474,405.3,149.65,pmt,PMT,-
+33,-336.474,-405.3,149.65,pmt,PMT,-
+34,-336.474,170,-54.35,pmt,PMT,-
+35,-336.474,1.13687e-13,-54.35,pmt,PMT,-
+36,-336.474,-170,-54.35,pmt,PMT,-
+37,-336.474,170,-156.35,pmt,PMT,-
+38,-336.474,1.13687e-13,-156.35,pmt,PMT,-
+39,-336.474,-170,-156.35,pmt,PMT,-
+"""
+
+
+def _parse_pos(reader):
     pos = {}
-    for d in csv.DictReader(open(posf)):
+    for d in reader:
         pos[int(d["opdet"])] = dict(x=float(d["x"]) / 100, y=float(d["y"]) / 100, z=float(d["z"]) / 100,
                                     shape=d["geom_shape"], name=d["json_name"], typ=d["json_pd_type"])
     return pos
+
+
+def load_maps(given):
+    """OpDet positions: --positions / a found maps CSV / the embedded fallback (in that order)."""
+    import io
+    here = os.path.dirname(os.path.abspath(__file__))
+    base = "pdvd_v5_opdet_positions.csv"
+    cands = ([given] if given else []) + [
+        os.path.join(here, "..", "maps", base), os.path.join(here, "maps", base),
+        os.path.join(here, base), os.path.join(os.getcwd(), base), os.path.join(os.getcwd(), "maps", base)]
+    for c in cands:
+        if c and os.path.exists(c):
+            print(f"OpDet positions: {c}")
+            return _parse_pos(csv.DictReader(open(c)))
+    if given:
+        sys.exit(f"--positions file not found: {given}")
+    print("OpDet positions: (embedded protodunevd_v5 fallback)")
+    return _parse_pos(csv.DictReader(io.StringIO(EMBEDDED_POS)))
 
 
 def find_rawwf(flashpath, given):
@@ -344,7 +408,7 @@ def main():
     ap = argparse.ArgumentParser(description="Browse PDVD recob::OpFlash flash-by-flash; click a PD for its raw waveform.")
     ap.add_argument("flashfile")
     ap.add_argument("--rawwf", default=None, help="raw_waveform file (auto-found if omitted)")
-    ap.add_argument("--positions", default=f"{TEMP}/pdvd_v5_opdet_positions.csv")
+    ap.add_argument("--positions", default=None, help="OpDet positions CSV (default: found in maps/ or embedded)")
     ap.add_argument("--start", type=int, default=0)
     ap.add_argument("--event", type=int, default=None, help="jump to the first flash of this event")
     ap.add_argument("--min-pd", type=int, default=1, help="only flashes with >= this many PDs")
