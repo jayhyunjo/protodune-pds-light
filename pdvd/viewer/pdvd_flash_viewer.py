@@ -18,11 +18,16 @@ same 16 ns-tick clock, so a flash's waveform is the record with ts <= t_flash <=
 
 On click, the raw record shown is the one whose actual pulse (argmax above baseline)
 lands nearest the flash time -- self-trigger records overlap heavily, so this (not
-"nearest start") is the record carrying the flash's light -- rendered with t=0 at the
-flash time. PE color is log-scaled by default (--linear-scale / --pe-max to change).
+"nearest start") is the record carrying the flash's light. Self-trigger waveforms use
+a per-capture time axis (like the PDHD viewer) with the flash time MARKED, so the
+waveform stays put as you flip flashes; the full-stream cathode is shown zoomed on
+t - t_flash. PE color is log-scaled by default (--linear-scale / --pe-max to change).
 
-Markers: squares = X-ARAPUCA, circles = PMT, open grey = no PE this flash, red x = dead.
-Keys: ←/→ ±1 flash | ↑/↓ ±10 | pgup/pgdn ±50 | ]/[ ±100 | home/end | s save | q quit.
+A CRP (charge-readout-plane) reference from protodunevd_v5 is overlaid (orange):
+Top view = the Y=0 CRP split + TPC grid; Side view = the top/bottom anode planes +
+cathode. Toggle with 'c'. Markers: squares = X-ARAPUCA, circles = PMT, open grey =
+no PE this flash, red x = dead.
+Keys: ←/→ ±1 flash | ↑/↓ ±10 | pgup/pgdn ±50 | ]/[ ±100 | home/end | c CRP | s save | q quit.
 Interactive:   python pdvd_flash_viewer.py <..._flash.root> [--rawwf <..._rawwf.root>]
 Headless:      python pdvd_flash_viewer.py <..._flash.root> --start N [--opdet K] --out flash.png
 REQUIRES: numpy, matplotlib, and uproot (laptop) OR pyROOT (container).
@@ -35,6 +40,16 @@ TEMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "maps")
 FULLSTREAM_MIN = 50000     # nsamp above this = full-stream (continuous) readout
 TICK_US = 0.016            # 16 ns / sample
 DEAD_PMT = {24, 27, 28, 34}
+
+# protodunevd_v5 CRP / anode layout, in METERS (from the geometry dump: 16 TPCs =
+# 2 drifts [top X>0, bottom X<0] x 2 CRPs per drift [split at Y=0] x a 2x2 TPC tiling).
+# Each CRP is ~3.4 m (Y) x 3.0 m (Z) and spans the full Z.  Provisional numbering:
+#   CRP1=(top,-Y)  CRP2=(top,+Y)  CRP3=(bottom,-Y)  CRP4=(bottom,+Y)
+CRP_Z = (0.006, 2.987)     # anode Z extent (m)
+CRP_Y = (-3.364, 3.364)    # anode Y extent (m)
+CRP_ANODE_X = 3.415        # top/bottom anode planes at X = +/- this (m); drift is vertical
+TPC_YSUB = 1.685           # finer TPC boundary within each CRP, |Y| (m)
+TPC_ZSUB = 1.496           # finer TPC boundary in Z (m)
 
 
 # Embedded protodunevd_v5 OpDet positions (cm) so the viewer is self-contained on a laptop
@@ -234,7 +249,11 @@ class LazyRaw:
         return best
 
     def trace(self, ev, od, tflash, half_us=8.0):
-        """(t_us_rel_flash, adc_baseline_subtracted, is_zoom) or None."""
+        """Returns (t_us, adc_baseline_subtracted, is_zoom, t_flash_us) or None.
+        Self-trigger: t is per-capture time (0 at the record start, like the PDHD viewer)
+        and t_flash_us marks where the flash falls -> the waveform stays put as you flip
+        flashes; only the flash marker moves.  Full-stream (cathode): can't show ~469k
+        samples, so we zoom +/-half_us around the flash and put t=0 at the flash."""
         rec = self.match(ev, od, tflash)
         if rec is None:
             return None
@@ -246,8 +265,8 @@ class LazyRaw:
         if ns > FULLSTREAM_MIN:                  # full-stream -> zoom around the flash time
             o = int(round(off)); half = int(half_us / TICK_US)
             lo, hi = max(0, o - half), min(len(a), o + half)
-            return (np.arange(lo, hi) - off) * TICK_US, a[lo:hi], True
-        return (np.arange(len(a)) - off) * TICK_US, a, False
+            return (np.arange(lo, hi) - off) * TICK_US, a[lo:hi], True, 0.0
+        return np.arange(len(a)) * TICK_US, a, False, off * TICK_US
 
 
 class FlashViewer:
@@ -257,6 +276,7 @@ class FlashViewer:
         self.jit = {od: (0.07 * (((od * 7) % 5) - 2), 0.07 * (((od * 3) % 5) - 2)) for od in pos}
         self.i = 0
         self.sel_od = None
+        self.show_crp = True
         self._last_cand, self._cyc = [], 0
         self.fig = self.cb = None
         seen = set().union(*[set(d["pe"]) for d in flashes]) if flashes else set()
@@ -269,6 +289,28 @@ class FlashViewer:
     def dpos(self, od, vi):
         p = self.pos[od]; jx, jy = self.jit[od]
         return p["z"] + jy, p[vi] + jx
+
+    def draw_crp(self, ax, vi):
+        """Overlay the CRP (charge-readout-plane) reference from protodunevd_v5.
+        Top view (Y-Z): the two drifts overlap, so a CRP shows as the Y=0 split
+        (2 CRPs across Y) with the finer TPC grid dotted. Side view (X-Z): the two
+        anode planes (top/bottom drift) at X=+/-3.415 m, with the cathode at X=0."""
+        z0, z1 = CRP_Z; oc = "darkorange"
+        if vi == "y":                                  # Top (Y-Z): x=Z, y=Y
+            ax.plot([z0, z1], [0, 0], color=oc, lw=1.5, zorder=2.6)          # CRP boundary at Y=0
+            for yy in (-TPC_YSUB, TPC_YSUB):                                 # finer TPC grid
+                ax.plot([z0, z1], [yy, yy], color=oc, lw=0.5, ls=":", alpha=0.5, zorder=2.5)
+            ax.plot([TPC_ZSUB, TPC_ZSUB], list(CRP_Y), color=oc, lw=0.5, ls=":", alpha=0.5, zorder=2.5)
+            ax.text(z0 + 0.06, 3.02, "CRP 2·4", color=oc, fontsize=8, fontweight="bold", zorder=6)
+            ax.text(z0 + 0.06, -3.02, "CRP 1·3", color=oc, fontsize=8, fontweight="bold", va="top", zorder=6)
+            ax.text(z1 - 0.05, 3.25, "(top·bottom drift)", color=oc, fontsize=6.5, ha="right", zorder=6)
+        else:                                          # Side (X-Z): x=Z, y=X
+            for xx, lab in ((CRP_ANODE_X, "top drift: CRP 1,2"), (-CRP_ANODE_X, "bottom drift: CRP 3,4")):
+                ax.plot([z0, z1], [xx, xx], color=oc, lw=1.8, zorder=2.6)    # anode planes
+                ax.text(z1 - 0.05, xx - (0.30 if xx > 0 else -0.12), lab, color=oc,
+                        fontsize=7, ha="right", fontweight="bold", zorder=6)
+            ax.plot([z0, z1], [0, 0], color="green", lw=1.0, ls="--", alpha=0.7, zorder=2.5)   # cathode
+            ax.text(z1 - 0.05, 0.12, "cathode", color="green", fontsize=7, ha="right", zorder=6)
 
     def make_norm(self):
         from matplotlib.colors import Normalize, LogNorm
@@ -301,6 +343,8 @@ class FlashViewer:
                 ax.scatter(zs, vs, s=210, facecolors="none", edgecolors="magenta", linewidths=1.8, zorder=5)
             vhalf = 3.415 if vi == "x" else 3.364
             ax.add_patch(Rectangle((0.006, -vhalf), 2.981, 2 * vhalf, fill=False, edgecolor="red", lw=0.9, zorder=1))
+            if self.show_crp:
+                self.draw_crp(ax, vi)
             ax.set_xlim(-2.5, 6.0); ax.set_ylim(-4.5, 4.7); ax.set_aspect("equal", "box")
             ax.set_xlabel("Z (m)"); ax.set_ylabel(ylab); ax.set_title(ttl); ax.grid(alpha=0.2)
         if sc is not None and self.cb is None:
@@ -310,7 +354,7 @@ class FlashViewer:
         self.fig.suptitle(f"PDVD flash  run {self.run}   flash {self.i+1}/{len(self.flashes)}   "
                           f"ev {d['ev']} fl {d['fl']}   {len(pe)} PDs   totalPE={d['total_pe']:.0f}   "
                           f"(y,z)=({d['yc']:.0f},{d['zc']:.0f}) cm\n"
-                          f"[click PD (again=cycle overlaps); ←/→ flash, ↑/↓ ±10, pg ±50, ][ ±100, s save]",
+                          f"[click PD (again=cycle overlaps); ←/→ flash, ↑/↓ ±10, pg ±50, ][ ±100, c=CRP, s save]",
                           fontsize=10)
 
     def draw_wf(self):
@@ -333,15 +377,27 @@ class FlashViewer:
             self.axR.text(0.5, 0.5, "dead channel" if od in self.dead else "no raw record near this flash",
                           ha="center", va="center", transform=self.axR.transAxes, fontsize=9, color="gray")
         else:
-            t, adc, zoom = tr
-            self.axR.plot(t, adc, lw=0.7, color="tab:blue")
-            self.axR.axvline(0, color="gray", ls=":", lw=0.7)
-            self.axR.set_xlabel("t − t_flash (µs, 16 ns/sample)", fontsize=8)
+            t, adc, zoom, tmark = tr
+            in_flash = d["pe"].get(od, 0) > 0          # did this PD actually contribute to this flash?
+            self.axR.plot(t, adc, lw=0.7, color="tab:blue" if in_flash else "0.6")
+            if t[0] <= tmark <= t[-1]:                 # mark the flash time if it falls in this capture
+                self.axR.axvline(tmark, color="gray", ls=":", lw=0.8)
+                self.axR.text(tmark, 0.98, " t_flash", color="gray", fontsize=6.5, va="top",
+                              transform=self.axR.get_xaxis_transform())
+            self.axR.set_xlabel(("t − t_flash (µs, 16 ns/sample)" if zoom
+                                 else "time in capture (µs, 16 ns/sample)"), fontsize=8)
             self.axR.set_ylabel("raw ADC − baseline", fontsize=8); self.axR.tick_params(labelsize=7)
             self.axR.grid(alpha=0.2)
             tag = "  [full-stream — zoom @ flash]" if zoom else "  [self-trigger]"
-            self.axR.set_title(f"OpDet {od} ({p['name']}, {p['typ']})  ev {d['ev']}  "
-                               f"PE={d['pe'].get(od, 0):.1f} — RAW{tag}", fontsize=9)
+            if in_flash:
+                self.axR.set_title(f"OpDet {od} ({p['name']}, {p['typ']})  ev {d['ev']}  "
+                                   f"PE={d['pe'][od]:.1f} — RAW{tag}", fontsize=9)
+            else:
+                # not a contributor: shows this PD's NEAREST capture; flash time is usually
+                # off this capture (no marker). Grey + labelled so it's not mistaken for a hit.
+                self.axR.set_title(f"OpDet {od} ({p['name']}, {p['typ']})  ev {d['ev']} — "
+                                   f"NOT in this flash (no PE; nearest capture){tag}",
+                                   fontsize=8.5, color="0.35")
 
     def candidates(self, ax, x, y, tol=0.6):
         vi = "x" if ax is self.axS else "y"
@@ -371,6 +427,9 @@ class FlashViewer:
             self.i = 0
         elif e.key == "end":
             self.i = n - 1
+        elif e.key == "c":
+            self.show_crp = not self.show_crp
+            self.draw_maps(); self.fig.canvas.draw_idle(); return
         elif e.key == "s":
             d = self.flashes[self.i]; fn = f"pdvd_flash_run{self.run}_ev{d['ev']}_fl{d['fl']}.png"
             self.fig.savefig(fn, dpi=130); print("saved", fn); return

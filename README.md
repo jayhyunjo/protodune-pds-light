@@ -102,9 +102,12 @@ Trees (plain ROOT, no art dependency): `flash` (per flash: time, total_pe, n_opd
 python pdvd/viewer/pdvd_flash_viewer.py <…_flash.root> [--rawwf <…_rawwf.root>]
 ```
 Flash-by-flash: Side (X-Z) + Top (Y-Z) OpDet maps colored by each PD's PE in the flash (log
-scale); click a PD for its raw waveform, matched to the flash time (the record whose pulse lands
-at t=0). Decon panel is a stub (VD reco is raw-only). ←/→ ±1 flash, ↑/↓ ±10, pg ±50, `s` save.
-Headless: `--start N [--opdet K] --out flash.png`.
+scale), with the **CRP layout overlaid** (orange; toggle `c`) — Top view shows the Y=0 CRP split
++ TPC grid, Side view the top/bottom anode planes + cathode. Click a PD for its raw waveform: the
+capture whose pulse is nearest the flash, drawn on a per-capture time axis with the flash time
+marked (grey + "NOT in this flash" if that PD had no PE in the flash). Decon panel is a stub (VD
+reco is raw-only). ←/→ ±1 flash, ↑/↓ ±10, pg ±50, `c` CRP, `s` save. Headless: `--start N
+[--opdet K] --out flash.png`.
 
 ---
 
