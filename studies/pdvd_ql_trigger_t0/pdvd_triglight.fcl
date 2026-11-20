@@ -1,0 +1,11 @@
+# Per-event PDVD charge/trigger/light time-base dump (PDVDTriggerLightAna).
+# Runs only the three decoders -- no reco, no art output file.
+#   lar -c pdvd_triglight.fcl -s <raw>.hdf5 -T <tag>_triglight.root -n -1
+#include "standard_reco_protodunevd_keepup.fcl"
+
+process_name: trigana
+
+physics.produce: [ pdvddaphne, tpcrawdecoder, triggerrawdecoder ]
+physics.analyzers.triglight: { module_type: "PDVDTriggerLightAna" }
+physics.ana:       [ triglight ]
+physics.end_paths: [ ana ]
