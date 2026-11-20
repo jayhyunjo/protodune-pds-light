@@ -52,6 +52,18 @@ pdhd/
 studies/
   pdvd_flash_finder/  the OpFlashFinderVerticalDrift single-PD-flash bug: BUG_REPORT.md (3 root
                       causes + fix), patch/ (patched module + diff vs v10_21_00d00), diagnosis fcls
+  pdvd_flashfinder_report/  the WRITE-UP of that bug: report.md/.html (self-contained, figures
+                      embedded), slides.pptx, plot_all.py, and the wcgpu1-vs-dunegpvm
+                      build-equivalence note. Read pdvd_flash_finder/ for the fix, this for
+                      the measurement.
+  pdvd_ql_trigger_t0/ the per-event charge<->light time-base offset: ANSWER.md (+ Q2-Q4 on
+                      cathode SPE normalization and Ar-vs-Xe per run), the 120-event offset
+                      table, and the lean decoders-only fcl. Built on pdhd/pdsoffset's
+                      PDVDTriggerLightAna. Headline: light is trigger-locked to +-0.3 us,
+                      charge floats +-15 us -- use the per-event, per-crate offset.
+  pdhd_spe_template_cmp/  per-channel v1/v0 vs NP04 vendor-average SPE templates: a validated
+                      numpy port of the LArSoft Deconvolution module (max |diff| <= 3e-8 vs
+                      stored waveforms), per-channel verdicts, and a draft interim fcl.
   plotting/           one-off plotting / ROOT-macro analysis scripts (geometry, PE maps, timing)
 
 docs/
