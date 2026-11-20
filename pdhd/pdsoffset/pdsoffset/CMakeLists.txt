@@ -57,3 +57,17 @@ cet_build_plugin(FlashOpDetAna art::EDAnalyzer
 
 install_fhicl()
 install_source()
+
+cet_build_plugin(PDVDTriggerLightAna art::EDAnalyzer
+  LIBRARIES PRIVATE
+    lardataobj::RawData
+    dunedetdataformats
+    art_root_io::TFileService_service
+    art::Framework_Principal
+    art::Framework_Core
+    art::Framework_Services_Registry
+    canvas::canvas
+    fhiclcpp::fhiclcpp
+    messagefacility::MF_MessageLogger
+    ROOT::Tree
+)

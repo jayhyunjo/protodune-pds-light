@@ -5,6 +5,8 @@ defaultqual e26:prof
 cetmodules    v3_24_01    -    only_for_build
 
 # runtime/build dependency: dunesw pulls in art, lardataobj, dunedetdataformats, ROOT, ...
+# NB: for the PDVD workflows build against dunesw v10_21_00d00 (edit the line below);
+# the PDHD keepup workflow uses v10_20_09d00.
 product       version
 dunesw        v10_20_09d00
 end_product_list

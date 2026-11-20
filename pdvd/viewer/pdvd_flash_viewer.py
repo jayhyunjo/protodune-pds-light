@@ -183,7 +183,8 @@ class LazyRaw:
         try:
             import uproot
             self.f = uproot.open(path)
-            self.tree = self.f["raw_waveform"]
+            # new files: rawdump/raw_waveform (PDHD-style layout); old files: top-level
+            self.tree = self.f["rawdump/raw_waveform"] if "rawdump" in self.f else self.f["raw_waveform"]
             sc = self.tree.arrays(["event", "opdet", "timestamp", "nsamp"], library="np")
             for i in range(len(sc["event"])):
                 self.idx[(int(sc["event"][i]), int(sc["opdet"][i]))].append(
@@ -192,7 +193,7 @@ class LazyRaw:
         except ImportError:
             import ROOT
             self.f = ROOT.TFile.Open(path)
-            self.tree = self.f.Get("raw_waveform")
+            self.tree = self.f.Get("rawdump/raw_waveform") or self.f.Get("raw_waveform")
             self.tree.SetBranchStatus("*", 0)
             for b in ("event", "opdet", "timestamp", "nsamp"):
                 self.tree.SetBranchStatus(b, 1)

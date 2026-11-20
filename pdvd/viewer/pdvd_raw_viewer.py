@@ -46,12 +46,16 @@ def read_tree(path):
         return [(int(ev[i]), int(ch[i]), float(ts[i]), np.asarray(adc[i], dtype=float)) for i in range(len(ev))]
     try:
         import uproot
-        a = uproot.open(path)["raw_waveform"].arrays(["event", "opchannel", "timestamp", "adc"], library="np")
+        fu = uproot.open(path)
+        # new files: rawdump/raw_waveform (PDHD-style layout); old files: top-level
+        tu = fu["rawdump/raw_waveform"] if "rawdump" in fu else fu["raw_waveform"]
+        a = tu.arrays(["event", "opchannel", "timestamp", "adc"], library="np")
         return [(int(a["event"][i]), int(a["opchannel"][i]), float(a["timestamp"][i]), np.asarray(a["adc"][i], dtype=float))
                 for i in range(len(a["event"]))]
     except ImportError:
         import ROOT
-        f = ROOT.TFile.Open(path); t = f.Get("raw_waveform")
+        f = ROOT.TFile.Open(path)
+        t = f.Get("rawdump/raw_waveform") or f.Get("raw_waveform")
         rows = []
         for e in t:
             v = e.adc

@@ -72,12 +72,34 @@ IND=/path/to/raw_hdf5_dir  bash pdvd/scripts/run_pdvd_pdsraw.sh
 ```
 Single file: `lar -c pdvd/fcl/pdvd_pds_raw.fcl -s <raw>.hdf5 -o out_pdsraw.root [-n N]`.
 
-**2. Dump to plain ROOT** (`raw_waveform` tree; readable with uproot/ROOT, no art dependency):
+**Preferred — with the trigger/charge time base** (the PDVD analog of PDHD's
+`trigoff/trigger_offset`; needs `pdsoffset` built in an mrb dev area, `mrbslp`):
+```bash
+lar -c pdvd/fcl/pdvd_pds_raw_trigoff.fcl -s <raw>.hdf5 \
+    -o <tag>_pdsraw.root -T <tag>_triglight.root [-n N]
+```
+Also runs `tpcrawdecoder`+`triggerrawdecoder` (products dropped from the art output;
+only the per-event `triglight` tree is kept in the `-T` file) — this is what lets the
+plain-ROOT file carry the charge↔light offset that Q/L matching needs.
+
+**2. Dump to plain ROOT** (readable with uproot/ROOT, no art dependency):
 ```bash
 bash pdvd/scripts/run_pdvd_rawwf_dump.sh
-# or: python pdvd/scripts/pdvd_dump_rawwf.py <in_pdsraw.root> <out_rawwf.root> --max-events -1
+# or: python pdvd/scripts/pdvd_dump_rawwf.py <in_pdsraw.root> <out_rawwf.root> --max-events -1 \
+#        [--triglight <tag>_triglight.root]
 ```
-`raw_waveform` branches: `run, subrun, event, opchannel, opdet, x, y, z, timestamp, nsamp, adc[]`.
+PDHD-style directory layout (old files had the tree at top level; the viewers read both):
+`rawdump/raw_waveform` (`run, subrun, event, opchannel, opdet, x, y, z, timestamp, nsamp, adc[]`),
+`flashopdet/opdet_geo` (OpDet 0–39 → x,y,z,type,name), and with `--triglight` also
+`trigoff/trigger_offset` — per event: CTB beam-trigger time (`tc_us`), per-crate charge
+window starts (`charge_tde_us`/`charge_bde_us`), light window start (`fs_t0_us`), and
+`offset_*_us = charge_start − light_fullstream_start`, all on the 40-bit-masked DTS-µs
+clock of the `timestamp` branch. NB unlike PDHD's `trigoff` (whose `offset_us` is
+*trigger−charge*, ~250–282 µs, for trigger-referenced reco'd light), the PDVD offsets are
+*charge−light* (~2.1–2.5 ms) because the raw-waveform timestamps are absolute. The light
+full-stream window is trigger-locked to ±0.3 µs, but the **charge window floats by
+±15 µs event-to-event** (and TDE/BDE start up to 32 µs apart) — use the per-event,
+per-crate offset, not a run constant.
 
 **3. View** (laptop: needs `numpy`, `matplotlib`, `uproot`; the maps default to `pdvd/maps/`):
 ```bash

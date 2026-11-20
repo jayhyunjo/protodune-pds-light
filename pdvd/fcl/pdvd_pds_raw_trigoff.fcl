@@ -1,0 +1,40 @@
+# pdvd_pds_raw.fcl + the per-event charge/trigger/light time-base dump ("trigoff",
+# the PDVD analog of PDHD's trigoff/trigger_offset -- see pdvd_dump_rawwf.py --triglight).
+#
+# On top of the light-only decode this also runs the TPC and trigger raw decoders so
+# PDVDTriggerLightAna can record, per event: the charge readout-window start
+# (raw::RDTimeStamp, per crate: TDE stores ns, BDE stores 16-ns DTS ticks), all CTB
+# TriggerCandidates (DTS ticks), and the light window summary. The bulky charge and
+# trigger products are DROPPED from the art output -- only the TFileService tree
+# (triglight/triglight) and the OpDetWaveforms are kept.
+#
+# NEEDS the pdsoffset package built in an mrb dev area (mrbslp) -- same dev area as
+# the fixed flash finder is fine.
+#
+# Run (inside the SL7 container, after mrbslp):
+#   lar -c pdvd_pds_raw_trigoff.fcl -s <np02vd_raw_*.hdf5> \
+#       -o <tag>_pdsraw.root -T <tag>_triglight.root [-n N]
+#   python pdvd_dump_rawwf.py <tag>_pdsraw.root <tag>_rawwf.root \
+#       --max-events -1 --triglight <tag>_triglight.root
+
+# (self-contained on the stock keepup, like the other fcls here, so it runs with an
+#  absolute -c path without needing this directory in FHICL_FILE_PATH)
+#include "standard_reco_protodunevd_keepup.fcl"
+
+process_name: pdvdpdsraw
+
+physics.produce: [ pdvddaphne, tpcrawdecoder, triggerrawdecoder ]
+
+physics.analyzers.triglight: { module_type: "PDVDTriggerLightAna" }
+physics.ana:        [ triglight ]
+physics.end_paths:  [ output, ana ]
+
+services.TFileService: { fileName: "%ifb_%tc_triglight.root" }
+
+outputs.out1.fileName:       "%ifb_%tc_pdsraw.root"
+outputs.out1.dataTier:       "raw-waveforms"
+outputs.out1.outputCommands: [
+  "keep *",
+  "drop *_tpcrawdecoder_*_*",
+  "drop *_triggerrawdecoder_*_*"
+]
