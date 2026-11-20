@@ -1,0 +1,40 @@
+{
+ "stock": {
+  "n_flashes": 160419,
+  "mean_mult": 1.0000436357289348,
+  "max_mult": 2,
+  "multi_pd_pct": 0.004363572893485186
+ },
+ "partial": {
+  "n_flashes": 43919,
+  "mean_mult": 1.7406589403219563,
+  "max_mult": 5,
+  "multi_pd_pct": 72.61549670985222
+ },
+ "fixed": {
+  "n_flashes": 43763,
+  "mean_mult": 2.91275735210109,
+  "max_mult": 27,
+  "multi_pd_pct": 72.77380435527729
+ },
+ "n_ophits": 160430,
+ "display_flash": {
+  "event": 19409,
+  "flash_id": 203,
+  "t0": 16174337169.824001,
+  "n_opdet": 20,
+  "total_pe": 293342.94723579544
+ },
+ "display_stock": {
+  "n_flashes_in_window": 29,
+  "brightest_n_opdet": 1,
+  "brightest_pe": 212236.83731689595
+ },
+ "ulp_at_t0": 1024.0,
+ "float32_seed_offset": 145.82400131225586,
+ "identity": {
+  "n_pairs": 43763,
+  "n_dn_nonzero": 0,
+  "max_abs_dpe_rel": 5.862079685951971e-08
+ }
+}
